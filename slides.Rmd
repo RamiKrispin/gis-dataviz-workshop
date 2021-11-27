@@ -1,6 +1,6 @@
 ---
 title: "Introduction to Geospatial Visualization with R"
-subtitle: "R-Ladies Abuja"
+subtitle: "R-Ladies Abuja + Abuja R Users"
 author: "Rami Krispin"
 date: "2021/11/27 (updated: `r Sys.Date()`)"
 output:
@@ -13,7 +13,6 @@ output:
       countIncrementalSlides: false
 ---
 
-class: middle, inverse
 
 ```{r setup, include=FALSE}
 options(htmltools.dir.version = FALSE)
@@ -32,12 +31,31 @@ knitr::opts_chunk$set(warning = FALSE,
 1. Data Manipulation
 1. Merging sf objects with data
 1. Choropleth Map
-
+1. Q&A
 
 
 ---
 
-class: middle, inverse
+## About Me
+
+* Data science manager
+* Focusing on time series analysis and forecasting
+* GIS analysis and maps as a hobby
+* Open source contributor - [TSstudio](https://github.com/RamiKrispin/TSstudio), [USgrid](https://github.com/RamiKrispin/USgrid), [USgas](https://github.com/RamiKrispin/USgas), [coronavirus](https://github.com/RamiKrispin/coronavirus), [covid19italy](https://github.com/RamiKrispin/covid19italy)
+* Get in touch on [LinkedIn](https://www.linkedin.com/in/rami-krispin/), [Twitter](https://twitter.com/Rami_Krispin), [Github](https://github.com/RamiKrispin)
+
+---
+
+## Workshop scope
+
+* Introduction to spatial data
+* Working with sf objects
+* Plot `sf` objects with **mapview**, **tmap**, and **ggplot2**
+* Create choropleth maps
+
+---
+
+## Packages
 
 In this workshop we will use the following packages:
 
@@ -45,14 +63,17 @@ In this workshop we will use the following packages:
   - **rnaturalearth** - provides access for the Natural Earth. The Natural Earth is a public domain map dataset including vector country and other administrative boundaries
   - **sf** - for setting the map object class and plot it
 * Tools for plotting maps:  
-  - **mapview**, **tmap**, and **ggplot2** for plotting the map objects
+  - **mapview** - A wrapper for the leaflet library
+  - **tmap** - A package for creating a thematic maps
+  - **ggplot2** - Is a system for declarative creating graphics
+  - **viridis** - A package that provide a series of color maps
 * Datasets:
-  - **coronavirus**, **covid19italy** to pull Covid19 data at different levels (e.g., region, country, etc.)
+  - **coronavirus** to pull Covid19 data at different levels (e.g., region, country, etc.)
 
 ---
 class: middle, inverse
 
-## Spatial Geometries 
+## The Geometry 
 
 ---
 
@@ -165,7 +186,7 @@ head(world)
 
 ---
 
-### Working with the sf package
+## Working with the sf package
 
 ```{r}
 library(sf)
@@ -175,6 +196,8 @@ plot(world)
 
 
 ---
+
+## Working with the sf package
 
 * The **sf** package has a plot method for `sf` objects
 * By default, it will plot a choropleth map for any numeric variable
@@ -425,6 +448,8 @@ https://ramikrispin.github.io/coronavirus/articles/geospatial_visualization.html
 
 ## The tmap package
 
+Let's plot COVID19 vaccine data:
+
 ```{r}
 library(coronavirus)
 library(tmap)
@@ -439,6 +464,8 @@ head(covid19_vaccine)
 ---
 
 ## The tmap package
+
+As before, we will merge the data from **rnaturalearth** with the vaccine data:
 
 ```{r}
 map <- ne_countries(returnclass = "sf") %>%
@@ -459,6 +486,8 @@ df <- map %>% left_join(
 ---
 
 ## The tmap package
+
+Let's remove underpopulated areas and plot it:
 
 ```{r}
 df1 <- df %>% 
@@ -485,6 +514,8 @@ p1
 
 ## The tmap package
 
+The `projection` argument enables you to set different projection:
+
 ```{r}
 
 p2 <- tm_shape(df1) + 
@@ -506,6 +537,8 @@ p2
 ---
 
 ## The tmap package
+
+The **tmap** package provides different customization options, in the following example we will modify the background and add titles:
 
 
 ```{r}
@@ -559,6 +592,8 @@ p4
 
 ## The tmap package
 
+In addition to static plots, the **tmap** package has an interactive version using the leaflet JS library. To get an interactive output use the `tmap_mode` function:
+
 ```{r}
 tmap_mode("view")
 
@@ -583,9 +618,11 @@ p5
 
 ## The tmap package
 
+Let's re-plot the Nigerian States population with the tmap function:
 
 ```{r}
 tmap_mode("plot")
+
 nigeria_pop_plot <- tm_shape(nigeria_pop) +
     tm_polygons(col = "pop_2016", 
                 style = "order",
@@ -614,8 +651,10 @@ nigeria_pop_plot
 
 ## The tmap package
 
+You can break down the object polygons with the `tm_facets` function:
+
 ```{r}
-tm_shape(nigeria_pop) + 
+nigeria_pop_plot_facets <- tm_shape(nigeria_pop) + 
   tm_polygons(col = "pop_2016",  
               n = 5,
               title = "Total Population",
@@ -626,13 +665,25 @@ tm_shape(nigeria_pop) +
 
 ---
 
+## The tmap package
+
+```{r}
+nigeria_pop_plot_facets
+```
+
+
+---
+
 ## The ggplot2 package
+
+Likewise, you can plot `sf` objects with the **ggplot2** package using the `geom_sf` function:
 
 
 ```{r}
 library(ggplot2)
 library(viridis)
-ggplot(data = nigeria_pop, aes(fill = `pop_2016`)) + 
+
+p1 <- ggplot(data = nigeria_pop, aes(fill = `pop_2016`)) + 
   geom_sf() + 
   scale_fill_viridis_b()
 ```
@@ -641,9 +692,19 @@ ggplot(data = nigeria_pop, aes(fill = `pop_2016`)) +
 
 ## The ggplot2 package
 
+```{r}
+p1
+```
+
+
+---
+
+## The ggplot2 package
+
+To add label for each polygon use the `geom_sf_label` function:
 
 ```{r}
-ggplot(data = nigeria_pop, aes(fill = `pop_2016`)) + 
+p2 <- ggplot(data = nigeria_pop, aes(fill = `pop_2016`)) + 
   geom_sf(size = 0.1) + 
     scale_fill_viridis(alpha = 0.9,
                        begin = 0.01,
@@ -656,3 +717,32 @@ ggplot(data = nigeria_pop, aes(fill = `pop_2016`)) +
    theme_void()
 ```
 
+
+---
+
+## The ggplot2 package
+
+```{r}
+p2
+```
+
+
+---
+
+## Resources
+
+* Books:
+  - Geocomputation with R - https://geocompr.robinlovelace.net/
+  - Geospatial Health Data: Modeling and Visualization with R-INLA and Shiny - https://www.paulamoraga.com/book-geospatial/
+  - Introduction to Spatial Data Programming with R - https://geobgu.xyz/r/
+* Package documentation:
+  - **sf** - https://r-spatial.github.io/sf/
+  - **rnaturalearth** - https://docs.ropensci.org/rnaturalearth/
+  - **mapview** - https://r-spatial.github.io/mapview/
+  - **tmap** - https://r-tmap.github.io/tmap/
+  - **ggplot2 (geom_sf)**  - https://ggplot2.tidyverse.org/reference/ggsf.html
+* Examples
+  - Geospatial Visualization (**coronavirus** package) - https://ramikrispin.github.io/coronavirus/articles/geospatial_visualization.html
+  - Geospatial Visualization of the Covid19 Cases (**covid19sf** package) - https://ramikrispin.github.io/covid19sf/articles/geo.html
+  - Visualization covid19italy with Choropleth Maps (**covid19italy** package) - https://ramikrispin.github.io/covid19Italy/articles/geospatial_visualization.html
+  
