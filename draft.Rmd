@@ -1,0 +1,188 @@
+---
+title: "Draft"
+output:
+  html_document:
+    df_print: paged
+---
+
+In this workshop we will use the following packages:
+
+-   `rnaturalearth` - provides access for the [Natural Earth](http://www.naturalearthdata.com/). The Natural Earth is a public domain map dataset including vector country and other administrative boundaries
+
+-   `sf` for setting the map object class and plot it
+
+-   `mapview`, `tmap`, and `ggplot2` for plotting the map objects
+
+-   `coronavirus`, `covid19italy` to pull Covid19 data at different levels (e.g., region, country, etc.)
+
+```{r}
+library(sf)
+library(rnaturalearth)
+library(mapview)
+library(tmap)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(rvest)
+library(coronavirus)
+```
+
+### Polygons
+
+```{r}
+plot(x = 1, 
+     y = 1,
+     ylab = "",
+     xlab = "",
+     main = "Point")
+
+```
+
+```{r}
+
+plot(x = c(1, 2, 3), y = c(1, 4, 2), type = "l")
+
+```
+
+```{r}
+plot(x = c(1, 2, 4, 3, 1), y = c(1, 4, 3, 1, 1), type = "l")
+```
+
+labels + polygons = map boarders
+
+labels + polygons + data = choropleth map
+
+```{r}
+world <- ne_countries(type = 'countries', scale = 'small', returnclass = "sf")
+str(world)
+head(world)
+plot(world$geometry)
+```
+
+```{r}
+
+africa <- world %>% filter(continent == "Africa")
+plot(africa$geometry)
+```
+
+```{r}
+w_africa <- world %>% filter(subregion == "Western Africa")
+plot(w_africa$geometry, col = sf.colors(12, categorical = TRUE), border = 'grey', 
+     axes = TRUE, main = "Western Africa")
+```
+
+```{r}
+nigeria <- ne_states(country = "Nigeria", returnclass = "sf")
+
+head(nigeria)
+plot(nigeria$geometry, col = sf.colors(37, categorical = TRUE), border = 'grey', 
+     axes = TRUE, main = "Nigeria")
+```
+
+```{r}
+  
+url <- "https://en.wikipedia.org/wiki/List_of_Nigerian_states_by_population"
+
+page <- read_html(url)
+tables <- html_node(page, ".wikitable")
+pop_table <- html_table(tables, fill = TRUE) %>%
+  select(state_temp = State, pop_2006_temp = `Population (2006)`, pop_2016_temp = `Population (2016)`)
+
+
+pop_table$pop_2006 <- as.numeric(gsub(x = pop_table$pop_2006_temp,pattern = ",", replacement = ""))
+pop_table$pop_2016 <- as.numeric(gsub(x = pop_table$pop_2016_temp,pattern = ",", replacement = ""))
+pop_table$state <- gsub(x = pop_table$state_temp,pattern = " State", replacement = "")
+pop_table <- pop_table %>% select(-state_temp, -pop_2006_temp, - pop_2016_temp) %>%
+  select(state, pop_2006, pop_2016) %>%
+  mutate(state_fix = state)
+
+pop_table$state_fix[which(pop_table$state_fix == "Nasarawa")] <- "Nassarawa"
+
+head(pop_table)
+```
+
+```{r}
+nigeria_pop <- nigeria %>% left_join(pop_table, by = c("name" = "state_fix"))
+
+plot(nigeria_pop["pop_2016"], key.pos = 1, axes = TRUE, key.width = lcm(1.3), key.length = 1.0)
+
+
+tm_shape(nigeria_pop) +
+    tm_polygons(col = "pop_2016", 
+                style = "order",
+                title = "Population",
+                palette = "Blues") +
+   tm_style("cobalt") + 
+   tm_text("state", size = 0.7) +
+  tm_credits("Source: Wikipedia - List of Nigerian states by population",
+             position = c("LEFT", "BOTTOM")) + 
+  tm_layout(title= "Nigeria Population by States", 
+            title.position = c('right', 'top') ,
+            inner.margins = c(0.02, .02, .1, .15))
+```
+
+### Data
+
+```{r}
+covid19_daily <- refresh_coronavirus_jhu()
+
+head(covid19_daily)
+
+df <- covid19_daily %>%
+  filter(location_type == "country") %>%
+  group_by(location, data_type) %>%
+  summarise(cases = sum(value),
+            .groups = "drop") %>%
+  pivot_wider(names_from = data_type, values_from = cases) %>%
+  setNames(c("country", "total_cases", "total_death"))
+  
+  
+
+head(df)
+
+df1 <- covid19_daily %>%
+  filter(location_type == "country") %>%
+  group_by(location, location_code, data_type) %>%
+  summarise(cases = sum(value),
+            .groups = "drop") %>%
+  pivot_wider(names_from = data_type, values_from = cases) %>%
+  setNames(c("country", "total_cases", "total_death"))
+
+
+
+world_covid <- world %>% 
+  select(country = sovereignt, geometry) %>%
+  left_join(df, by = "country")
+
+
+plot(world_covid)
+plot(world_covid[, c("total_cases")])
+```
+
+### 
+
+### Data Visualization
+
+```{r}
+world <- ne_countries(type = 'countries', scale = 'large')
+sp::plot(world)
+
+world <- ne_countries(type = 'countries', scale = 'small', returnclass = "sf")
+world$random <- stats::rnorm(n = nrow(world))
+sf::plot_sf(world)
+sp::plot(world[, "random"])
+sp::plot(world[which(world$region_un == "Africa"), "random"])
+
+x1 <- rnaturalearth::ne_countries(country = 'Nigeria', type='countries')
+sp::plot(x1)
+
+# x2 <- rnaturalearth::ne_states(country = 'Nigeria')
+
+```
+
+```{r}
+
+mapview::mapview(x)
+
+# tmap::
+```

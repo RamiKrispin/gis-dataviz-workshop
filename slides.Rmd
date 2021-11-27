@@ -1,0 +1,658 @@
+---
+title: "Introduction to Geospatial Visualization with R"
+subtitle: "R-Ladies Abuja"
+author: "Rami Krispin"
+date: "2021/11/27 (updated: `r Sys.Date()`)"
+output:
+  xaringan::moon_reader:
+    css: ["default"]
+    lib_dir: libs
+    nature:
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+---
+
+class: middle, inverse
+
+```{r setup, include=FALSE}
+options(htmltools.dir.version = FALSE)
+knitr::opts_chunk$set(warning = FALSE, 
+                      message = FALSE, 
+                      fig.align = "center", 
+                      dpi = 400,
+                      fig.height = 4.5)
+```
+
+
+## Agenda
+
+1. Intro
+1. Spatial Geometries
+1. Data Manipulation
+1. Merging sf objects with data
+1. Choropleth Map
+
+
+
+---
+
+class: middle, inverse
+
+In this workshop we will use the following packages:
+
+* GIS data:
+  - **rnaturalearth** - provides access for the Natural Earth. The Natural Earth is a public domain map dataset including vector country and other administrative boundaries
+  - **sf** - for setting the map object class and plot it
+* Tools for plotting maps:  
+  - **mapview**, **tmap**, and **ggplot2** for plotting the map objects
+* Datasets:
+  - **coronavirus**, **covid19italy** to pull Covid19 data at different levels (e.g., region, country, etc.)
+
+---
+class: middle, inverse
+
+## Spatial Geometries 
+
+---
+
+## Point
+
+```{r}
+plot(x = 1, y = 1,
+     ylab = "", xlab = "", 
+     main = "Point")
+```
+
+
+---
+
+## Line
+
+```{r}
+plot(x = c(1, 2, 3), y = c(1, 4, 2), 
+     ylab = "", xlab = "",
+     main = "Line", type = "l")
+```
+
+---
+
+## Polygon
+
+```{r}
+plot(x = c(1, 2, 4, 3, 1), y = c(2, 4, 3, 1, 2),
+     ylab = "", xlab = "",
+     main = "Polygon", type = "l")
+```
+
+---
+
+## Polygon
+
+```{r echo = FALSE}
+library(rnaturalearth)
+library(sf)
+library(dplyr)
+
+nigeria_df <- ne_countries(type = 'countries', scale = 'small', returnclass = "sf") %>%
+  filter(name == "Nigeria")
+
+plot(nigeria_df$geometry, col = rgb(59, 132,86, maxColorValue = 255), border = 'grey', 
+     axes = TRUE, main = "Nigeria")
+```
+
+
+
+---
+
+## Labels + Polygons = Map Boarders
+
+```{r world_map, echo= FALSE, fig.height=9, fig.width=9, fig.align = "top"}
+library(rnaturalearth)
+library(sf)
+
+world <- ne_countries(type = 'countries', scale = 'small', returnclass = "sf")
+
+plot(world$geometry)
+```
+
+---
+
+
+## Labels + Polygons + Data = Choropleth
+
+<img src="images/Nigeria pop by state.png" width="75%" align="center"/></a>
+--- 
+
+class: middle, inverse
+
+## Working with Spatial Data
+
+---
+
+## The rnaturalearth package
+
+The **rnaturalearth** is a great resource to pull GIS data from the Natural Earth API on a different levels (country, region, sub-region, etc.)
+
+The `ne_countries` will return an `sf` (or `sp`) object with a GIS (polygon) data:
+
+```{r}
+library(rnaturalearth)
+
+world <- ne_countries(type = 'countries', 
+                      scale = 'small', 
+                      returnclass = "sf")
+```
+
+One of the main advantages of the `sf` object that it is also a data.frame object. Therefore, it is strightforward to work and manipulate the data with dplyr (or anything similar):
+
+```{r}
+class(world)
+```
+
+
+---
+
+```{r}
+str(world)
+```
+
+---
+
+```{r}
+head(world)
+```
+
+---
+
+### Working with the sf package
+
+```{r}
+library(sf)
+
+plot(world)
+```
+
+
+---
+
+* The **sf** package has a plot method for `sf` objects
+* By default, it will plot a choropleth map for any numeric variable
+
+To simply plot the world map by country without data use:
+
+```{r}
+plot(world$geometry)
+```
+
+
+---
+
+class: middle, inverse
+
+## Data Manipulation
+
+---
+
+## Filtering
+
+Filtering `sf` object is as simple as filtering a `data.frame` object. Let's say we want to re-plot the the following map without Antarctica:
+
+
+```{r}
+plot(world$geometry)
+```
+
+
+---
+
+## Filtering
+
+We will use the continent field to filter Antarctica from the object:
+
+```{r}
+library(dplyr)
+
+world1 <- world %>% filter(continent != "Antarctica") 
+
+plot(world1$geometry)
+```
+
+---
+
+## Subseting
+
+Likewise, we can subset a specific element of the sf object, for example let's pull Africa from the `world` object. We will use again the `continent` variable to subset the object:
+
+```{r}
+africa <- world %>% filter(continent == "Africa")
+plot(africa$geometry)
+```
+
+---
+
+## Country level
+
+The `ne_states` function enables you to pull a country/state level data. For example, let's pull Nigeria data:
+
+```{r}
+nigeria <- ne_states(country = "Nigeria", returnclass = "sf")
+
+head(nigeria)
+```
+
+---
+
+## Country level
+
+```{r}
+plot(nigeria$geometry, 
+     col = sf.colors(37, categorical = TRUE), 
+     border = 'grey', axes = TRUE, main = "Nigeria")
+```
+
+---
+
+class: middle, inverse
+
+## Merging sf objects with data
+
+---
+
+### Adding data - COVID19 cases
+
+In the following example we will pull COVID19 cases by country from the **coronavirus** package and merge it the `world` object we created before. 
+
+```{r cache=FALSE}
+library(coronavirus)
+
+covid19_daily <- refresh_coronavirus_jhu()
+
+head(covid19_daily)
+```
+
+---
+
+### Adding data - COVID19 cases
+
+Next step is to prepare the data for merging with the `world` object:
+
+```{r}
+library(tidyr)
+
+df <- covid19_daily %>%
+  filter(location_type == "country") %>%
+  group_by(location, location_code, data_type) %>%
+  summarise(cases = sum(value),
+            .groups = "drop") %>%
+  pivot_wider(names_from = data_type, values_from = cases) %>%
+  setNames(c("country", "country_code", "total_cases", "total_death"))
+
+head(df)
+```
+
+---
+
+### Adding data - COVID19 cases
+
+Once the data is ready we can merge the `world` table with the cases table:
+
+
+```{r}
+world_covid1 <- world %>% 
+  filter(continent != "Antarctica") %>%
+  select(country = sovereignt, geometry) %>%
+  left_join(df, by = "country")
+
+plot(world_covid1[, c("total_cases")])
+```
+
+
+
+---
+
+### Adding data - COVID19 cases
+
+We can try to merge the data with the country code (ISO code). 
+
+```{r}
+world_covid2 <- world %>% 
+  filter(continent != "Antarctica") %>%
+  select(country_code = iso_a2, geometry) %>%
+  left_join(df, by = "country_code")
+
+plot(world_covid2[, c("total_cases")])
+```
+
+
+---
+
+## Adding data - Nigeria population
+
+In the next example we will pull Nigeria population by state from Wikipedia and merge it with Nigeria state level `sf` object:
+
+<img src="images/Nigeria pop wiki.png" width="75%" align="center"/></a>
+
+
+---
+
+## Adding data - Nigeria population
+
+We will use the **rvest** package to pull the population data from Wikipedia:
+
+```{r, cache=FALSE}
+library(rvest)
+
+url <- "https://en.wikipedia.org/wiki/List_of_Nigerian_states_by_population"
+
+page <- read_html(url)
+tables <- html_node(page, ".wikitable")
+pop_table <- html_table(tables, fill = TRUE) %>%
+  select(state_temp = State, pop_2006_temp = `Population (2006)`, pop_2016_temp = `Population (2016)`)
+
+
+pop_table$pop_2006 <- as.numeric(gsub(x = pop_table$pop_2006_temp,pattern = ",", replacement = ""))
+pop_table$pop_2016 <- as.numeric(gsub(x = pop_table$pop_2016_temp,pattern = ",", replacement = ""))
+pop_table$state <- gsub(x = pop_table$state_temp,pattern = " State", replacement = "")
+pop_table <- pop_table %>% select(-state_temp, -pop_2006_temp, - pop_2016_temp) %>%
+  select(state, pop_2006, pop_2016) %>%
+  mutate(state_fix = state)
+```
+
+
+
+---
+
+## Adding data - Nigeria population
+
+```{r}
+head(pop_table)
+```
+
+Before merging let's just modify the one of the labels:
+
+```{r}
+pop_table$state_fix[which(pop_table$state_fix == "Nasarawa")] <- "Nassarawa"
+```
+
+Last but not least let's merge the tables:
+
+```{r}
+nigeria_pop <- nigeria %>% left_join(pop_table, by = c("name" = "state_fix"))
+```
+
+---
+
+## Adding data - Nigeria population
+
+```{r fig.height=4}
+plot(nigeria_pop["pop_2016"], key.pos = 1, 
+     axes = TRUE, main = "Nigeria Population by State",
+     key.width = lcm(1.3), key.length = 1.0)
+```
+
+---
+
+class: middle, inverse
+
+## Choropleth Map 
+
+---
+
+## The mapview package
+
+```{r}
+library(mapview)
+
+mapview(nigeria_pop, 
+        zcol = "pop_2016",
+        legend = TRUE,
+        layer.name = "Population")
+
+```
+
+---
+
+
+
+## The mapview package
+
+More examples available on the coronavirues vignette:
+
+https://ramikrispin.github.io/coronavirus/articles/geospatial_visualization.html
+
+---
+
+## The tmap package
+
+```{r}
+library(coronavirus)
+library(tmap)
+
+sf_use_s2(FALSE)
+
+data("covid19_vaccine")
+
+head(covid19_vaccine)
+```
+
+---
+
+## The tmap package
+
+```{r}
+map <- ne_countries(returnclass = "sf") %>%
+  select(name, iso2 = iso_a2, iso3 = iso_a3, geometry)
+
+
+df <- map %>% left_join(
+   covid19_vaccine %>%
+    filter(date == max(date),
+           is.na(province_state)) %>%
+    mutate(perc = round(100 * people_fully_vaccinated / population, 2)) %>%
+    select(country_region, iso2, iso3, people_fully_vaccinated, perc, continent_name),
+    by = c("iso2", "iso3")
+)
+```
+
+
+---
+
+## The tmap package
+
+```{r}
+df1 <- df %>% 
+  filter(!name %in% c("Greenland", "Antarctica"))
+
+p1 <- tm_shape(df1) + 
+  tm_polygons(col = "perc",  
+              n = 8,
+              title = "Fully Vaccinated %",
+              palette = "Blues")
+```
+
+---
+
+## The tmap package
+
+```{r}
+p1
+```
+
+
+
+---
+
+## The tmap package
+
+```{r}
+
+p2 <- tm_shape(df1) + 
+  tm_polygons(col = "perc",  
+              n = 8,
+              projection = 3857,
+              title = "Fully Vaccinated %",
+              palette = "Blues")
+```
+
+---
+
+## The tmap package
+
+```{r}
+p2
+```
+
+---
+
+## The tmap package
+
+
+```{r}
+df2 <- df1 %>%
+  filter(continent_name == "South America")
+
+
+p3 <- tm_shape(df2) + 
+  tm_polygons(col = "perc",  
+              n = 5,
+              title = "Perc. Group",
+              palette = "Blues") 
+```
+
+---
+
+## The tmap package
+
+```{r}
+p3
+```
+
+---
+
+## The tmap package
+
+```{r}
+p4 <- tm_shape(df2) + 
+  tm_polygons(col = "perc",  
+              n = 5,
+              title = "Perc. Group",
+              palette = "Blues") + 
+  tm_style("cobalt") + 
+  tm_text("iso3", size = 0.7) +
+  tm_layout(
+            title= "% of Population Fully Vaccinated", 
+            title.position = c('right', 'top') ,
+            inner.margins = c(0.02, .02, .1, .25))
+```
+
+---
+
+## The tmap package
+
+```{r}
+p4
+```
+
+
+---
+
+## The tmap package
+
+```{r}
+tmap_mode("view")
+
+p5 <- tm_shape(df2) + 
+  tm_polygons(col = "perc",  
+              n = 5,
+              title = "Perc. Group",
+              palette = "Blues") 
+```
+
+---
+
+## The tmap package
+
+```{r}
+p5
+```
+
+
+
+---
+
+## The tmap package
+
+
+```{r}
+tmap_mode("plot")
+nigeria_pop_plot <- tm_shape(nigeria_pop) +
+    tm_polygons(col = "pop_2016", 
+                style = "order",
+                title = "Population",
+                palette = "Blues") +
+   tm_style("cobalt") + 
+   tm_text("state", size = 0.7) +
+  tm_credits("Source: Wikipedia - List of Nigerian states by population",
+             position = c("LEFT", "BOTTOM")) + 
+  tm_layout(title= "Nigeria Population by States", 
+            title.position = c('right', 'top') ,
+            inner.margins = c(0.02, .02, .1, .15))
+```
+
+
+---
+
+## The tmap package
+
+
+```{r}
+nigeria_pop_plot
+```
+
+---
+
+## The tmap package
+
+```{r}
+tm_shape(nigeria_pop) + 
+  tm_polygons(col = "pop_2016",  
+              n = 5,
+              title = "Total Population",
+              palette = "Greens") + 
+  tmap_options(limits = c(facets.view = 13)) + 
+  tm_facets(by = "name")
+```
+
+---
+
+## The ggplot2 package
+
+
+```{r}
+library(ggplot2)
+library(viridis)
+ggplot(data = nigeria_pop, aes(fill = `pop_2016`)) + 
+  geom_sf() + 
+  scale_fill_viridis_b()
+```
+
+---
+
+## The ggplot2 package
+
+
+```{r}
+ggplot(data = nigeria_pop, aes(fill = `pop_2016`)) + 
+  geom_sf(size = 0.1) + 
+    scale_fill_viridis(alpha = 0.9,
+                       begin = 0.01,
+                       discrete = FALSE,
+                       end = 0.9) + 
+  geom_sf_label(aes(label = state)) + 
+  labs(fill = "Population",
+       title = "Population by State",
+       caption = "Source: https://en.wikipedia.org/wiki/List_of_Nigerian_states_by_population") + 
+   theme_void()
+```
+
